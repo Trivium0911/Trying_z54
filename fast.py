@@ -1,5 +1,8 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
+from fastapi import Body
+from fastapi import Query
+
 import math
 
 
@@ -18,8 +21,7 @@ async def handler(obj: TaskArgs):
     a = obj.args.a
     b = obj.args.b
     return {"result" : int(math.sqrt(a) + b), "task" : obj.name}
-@app.get("/hello")
-async def handler():
-    return {
-        "hello" : "world",
-    }
+@app.post("/task/4")
+async def handler(number: int = Body(...)):
+    print(f"new number: {number}")
+    return number
