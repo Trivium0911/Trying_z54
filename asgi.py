@@ -2,7 +2,7 @@ import json
 async def application(scope, receive, send) -> None:
     if scope["type"] != "http":
         return
-
+    print ("    ")
     path = scope["path"]
     print(1)
     print(1)
