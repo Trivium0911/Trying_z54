@@ -43,4 +43,4 @@ def handler(request: Request, response: Response, data: str = Body(...)):
     else:
         assert data.isdigit()
         numbers[user].append(int(data))
-        return numbers
+        return numbers[user]
