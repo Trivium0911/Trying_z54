@@ -1,129 +1,65 @@
-import math
-import os
-import traceback
-from collections import defaultdict
-from contextlib import closing
-from typing import Optional, List
-
-import psycopg2
+from typing import Optional
 from fastapi import Body
-from fastapi import FastAPI, Request, Query
-from psycopg2 import sql
-from pydantic import BaseModel
-from starlette.responses import Response
+from fastapi import FastAPI
+from starlette.requests import Request
+from starlette.responses import Response, HTMLResponse
+import db
+import tg
+from users import gen_random_name
+from users import get_user
+from lessons import task_3
+from util import apply_cache_headers, static_response
+
 
 app = FastAPI()
 
-def execute_sql(sql: str) -> List[tuple]:
-    rows = []
+@app.get("/", response_class=HTMLResponse)
+async def _(response: Response):
+    apply_cache_headers(response)
 
-    dsn = os.getenv("DATABASE_URL", "").replace("postgresql", "postgres")
-    print(f"{dsn = }")
-    if not dsn:
-        return rows
-
-    with closing(psycopg2.connect(dsn)) as connection:
-        with closing(connection.cursor()) as cursor:
-            cursor.execute(sql)
-            connection.commit()
-
-            try:
-                if cursor.rowcount:
-                    rows = cursor.fetchall()
-            except psycopg2.ProgrammingError:
-                traceback.print_exc()
-
-    return rows
+    return static_response("index.html", response_cls=HTMLResponse)
 
 
-class Numbers(BaseModel):
-    a: int
-    b: int
+@app.get("/img", response_class=Response)
+async def _(response: Response):
+    apply_cache_headers(response)
 
-class TaskArgs(BaseModel):
-    name: str
-    args: Numbers
+    return static_response("image.gif")
 
 
-@app.post("/my/")
-async def handler(obj: TaskArgs):
-    a = obj.args.a
-    b = obj.args.b
-    return {"result" : int(math.sqrt(a) + b), "task" : obj.name}
+@app.get("/js", response_class=Response)
+async def _(response: Response):
+    apply_cache_headers(response)
+
+    return static_response("index.js")
 
 
-numbers = defaultdict(list)
-
-
-def gen_random_name():
-    return os.urandom(16).hex()
-
-
-def get_user(request: Request):
-    return request.cookies.get("user")
-
-
-def get_number(user: str) -> Optional[int]:
-    sql = f"""
-        SELECT n FROM numbers
-        WHERE name = '{user}'
-        ;
-    """
-    r = execute_sql(sql)
-    try:
-        n = r[0][0]
-    except IndexError:
-        return None
-    return n
-
-
-def user_exists(user: str) -> bool:
-    n = get_number(user)
-    return n is not None
-
-
-def update_number(user: str, number: int) -> None:
-    n = get_number(user)
-    n += number
-
-    sql = f"""
-        UPDATE numbers
-        SET
-            n = {n}
-        WHERE
-            name = '{user}'
-        ;
-    """
-    execute_sql(sql)
-
-
-def insert_new_user(user: str, number: int) -> None:
-    sql = f"""
-        INSERT INTO numbers(name, n)
-        VALUES ('{user}', {number})
-        ;
-    """
-    execute_sql(sql)
-
-
-def save_number(user: str, number: int) -> None:
-    if user_exists(user):
-        update_number(user, number)
-    else:
-        insert_new_user(user, number)
+@app.post("/task/3")
+async def _(name: Optional[str] = Body(default=None)):
+    result = task_3(name)
+    return {"data": {"greeting": result}}
 
 
 @app.post("/task/4")
-def handler(
-    request: Request,
-    response: Response,
-    data: str = Body(...),
-):
+async def _(request: Request, response: Response, data: str = Body(...)):
     user = get_user(request) or gen_random_name()
     response.set_cookie("user", user)
 
     if data == "stop":
-        return get_number(user)
+        number = await db.get_number(user)
     else:
-        save_number(user, int(data))
-        return data
+        number = await db.add_number(user, int(data))
+
+    return {"data": {"n": number}}
+
+@app.get("/abc/", response_class = Response)
+async def handler():
+    html = "<p>A </p>  <p> B </p> <p> C </p>"
+    return Response(content=html, media_type="text/html")
+
+
+@app.get ("/tg/about")
+def _():
+    r = tg.getMe()
+    return r
+

@@ -1,19 +1,14 @@
-from fast import execute_sql
+import asyncio
+import db
 
 
-def prepare_db():
-    execute_sql(
-        """
-        CREATE TABLE IF NOT EXISTS numbers(
-            name text NOT NULL UNIQUE,
-            n integer NOT NULL DEFAULT 0
-        )
-        ;
-        """
-    )
-
-    print(2131232131)
+async def prepare_db():
+    await db.drop_tables()
+    await db.create_tables()
+    print("db is prepared")
 
 
 if __name__ == "__main__":
-    prepare_db()
+    asyncio.run(prepare_db())
+
+
