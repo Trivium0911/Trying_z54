@@ -1,33 +1,104 @@
 from typing import Optional
+import httpx
 from fastapi import Body
 from fastapi import FastAPI
-from starlette.requests import Request
-from starlette.responses import Response, HTMLResponse
+from fastapi import Header
+from fastapi.requests import Request
+from fastapi.responses import Response
 import db
 import tg
+from config import settings
+from lessons import task_3
 from users import gen_random_name
 from users import get_user
-from lessons import task_3
-from util import apply_cache_headers, static_response
-
+from util import apply_cache_headers
+from util import authorize
+from util import hide_webhook_secret
+from util import safe
+from util import static_response
 
 app = FastAPI()
 
-@app.get("/", response_class=HTMLResponse)
+
+@app.get("/tg/about")
+async def _(client: httpx.AsyncClient = tg.Telegram):
+    user = await tg.getMe(client)
+    return user
+
+
+@app.get("/tg/webhook")
+async def _(client: httpx.AsyncClient = tg.Telegram):
+    whi = await tg.getWebhookInfo(client)
+    hide_webhook_secret(whi)
+    return whi
+
+
+@app.post("/tg/webhook")
+async def _(
+    client: httpx.AsyncClient = tg.Telegram,
+    whi: tg.WebhookInfo = Body(...),
+    authorization: str = Header(""),
+):
+    authorize(authorization)
+
+    whi.url = f"{whi.url}{settings.webhook_path}"
+    webhook_set = await tg.setWebhook(client, whi)
+
+    whi = await tg.getWebhookInfo(client)
+    hide_webhook_secret(whi)
+
+    return {
+        "ok": webhook_set,
+        "webhook": whi,
+    }
+
+
+@app.post(settings.webhook_path)
+@safe
+async def _(
+    client: httpx.AsyncClient = tg.Telegram,
+    update: tg.Update = Body(...),
+):
+    user = str(update.message.chat.id)
+    data = update.message.text
+
+    if data == "stop":
+        number = await db.add_number(user, 0)
+    elif data.isdigit():
+        number = await db.add_number(user, int(data))
+    else:
+        number = None
+
+    if number is None:
+        message = f"непонятно: {data!r}"
+    else:
+        message = f"твоё текущее число: {number}"
+
+    await tg.sendMessage(
+        client,
+        tg.SendMessageRequest(
+            chat_id=update.message.chat.id,
+            reply_to_message_id=update.message.message_id,
+            text=message,
+        ),
+    )
+
+
+@app.get("/")
 async def _(response: Response):
     apply_cache_headers(response)
 
-    return static_response("index.html", response_cls=HTMLResponse)
+    return static_response("index.html")
 
 
-@app.get("/img", response_class=Response)
+@app.get("/img")
 async def _(response: Response):
     apply_cache_headers(response)
 
-    return static_response("image.gif")
+    return static_response("image.jpg")
 
 
-@app.get("/js", response_class=Response)
+@app.get("/js")
 async def _(response: Response):
     apply_cache_headers(response)
 
@@ -51,15 +122,3 @@ async def _(request: Request, response: Response, data: str = Body(...)):
         number = await db.add_number(user, int(data))
 
     return {"data": {"n": number}}
-
-@app.get("/abc/", response_class = Response)
-async def handler():
-    html = "<p>A </p>  <p> B </p> <p> C </p>"
-    return Response(content=html, media_type="text/html")
-
-
-@app.get ("/tg/about")
-def _():
-    r = tg.getMe()
-    return r
-

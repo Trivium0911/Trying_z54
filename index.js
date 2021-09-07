@@ -1,39 +1,54 @@
 const TASK_3_URL = '/task/3';
 const TASK_4_URL = '/task/4';
+const TG_WH_URL = '/tg/webhook';
 
 
-async function api_call(url, arg) {
+async function api_call(url, params) {
+    let headers = params.headers || new Headers();
+    headers.set("Content-Type", "application/json");
     const resp = await fetch(
         url, {
-            body: arg,
-            method: 'POST',
+            body: JSON.stringify(params.json),
+            headers: headers,
+            method: params.method || "POST",
         });
 
     if (resp.status !== 200) {
         return null;
     }
 
-    const payload = await resp.json();
-
-    return payload;
+    return await resp.json();
 }
 
 
 async function getNumber() {
-    const payload = await api_call(TASK_4_URL, 'stop');
+    const payload = await api_call(TASK_4_URL, {json: 'stop'});
     return payload.data.n;
 }
 
 
 async function addNumber(number) {
-    const payload = await api_call(TASK_4_URL, number);
+    const payload = await api_call(TASK_4_URL, {json: number});
     return payload.data.n;
 }
 
 
 async function greet(name) {
-    const payload = await api_call(TASK_3_URL, name);
+    const payload = await api_call(TASK_3_URL, {json: name});
     return payload.data.greeting;
+}
+
+
+async function getWebhook() {
+    return await api_call(TG_WH_URL, {method: "GET"});
+}
+
+
+async function setWebhook(url, token) {
+    let headers = new Headers();
+    headers.append("AUTHORIZATION", token);
+    const payload = await api_call(TG_WH_URL, {json: {url: url}, headers: headers});
+    return payload.webhook;
 }
 
 
@@ -50,27 +65,30 @@ async function setUpTask3() {
 
 
 async function setUpTask4() {
-    let label = document.querySelector("#task4 label");
-    let input = document.querySelector("#task4 input");
     let button = document.querySelector("#task4 button");
+    let follow = document.getElementById("id_task_4_cb");
+    let input = document.getElementById("id_task_4_input");
+    let label = document.querySelector("#task4 label");
 
     const ping = async function () {
         const number = await getNumber();
         label.textContent = `Накопление: ${number}`;
     }
 
-    //setInterval(ping, 5000);
-    //await ping();
+    await ping();
+
+    follow.addEventListener("click", async function (event) {
+        if (follow.checked) {
+            follow.interval = setInterval(ping, 5000);
+        } else {
+            if (follow.interval) {
+                follow.interval.clearInterval();
+            }
+        }
+    });
 
     button.addEventListener("click", async function (event) {
-        if (input.value === "stop") {
-            await ping();
-            return;
-        };
-        let value = Number.parseInt(input.value || '0');
-        if (value == 'NaN') {
-            value = 0;
-        }
+        const value = Number.parseInt(input.value || '0');
         input.value = 0;
         await addNumber(value);
         await ping();
@@ -78,9 +96,31 @@ async function setUpTask4() {
 }
 
 
+async function setUpTg() {
+    let spanWebhook = document.getElementById("id_webhook");
+    let inputToken = document.getElementById("id_token");
+    let button = document.querySelector("#tg button");
+
+    const showWebhookUrl = (wh) => {
+        spanWebhook.textContent = `Вебхук: ${wh.url}`;
+    }
+
+    const wh = await getWebhook();
+    showWebhookUrl(wh);
+
+    button.addEventListener("click", async function (event) {
+        const wh = await setWebhook(`https://${window.location.host}`, inputToken.value);
+        inputToken.value = "";
+        showWebhookUrl(wh);
+    });
+}
+
+
 async function setUp() {
     await setUpTask3();
     await setUpTask4();
+    await setUpTg();
 }
+
 
 document.addEventListener("DOMContentLoaded", setUp);
