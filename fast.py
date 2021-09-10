@@ -77,16 +77,16 @@ async def _(
     try:
         input_number = int(data)
         if input_number > 100:
-            future = respond(f"слишком большое число: {input_number} > 100")
+            future = respond(f"Вы ввели слишком большое число: {input_number} > 100")
         else:
             number = await db.add_number(user, input_number)
-            future = respond(f"добавили {data}, имеем {number}")
+            future = respond(f"Прибавим {data}, получаем  {number}")
     except ValueError:
         if data == "stop":
             number = await db.add_number(user, 0)
-            future = respond(f"твоё текущее число: {number}")
+            future = respond(f"Твоё текущее число: {number}")
         else:
-            future = respond(f"непонятная команда: {data}")
+            future = respond(f"Непонятная команда: {data}")
 
     await future
 
