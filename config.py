@@ -1,5 +1,6 @@
 import os
-
+from pydantic import BaseSettings
+from pydantic import Field
 admin_token = os.getenv("ADMIN_TOKEN")
 print(f"{admin_token = !r}")
 
@@ -14,12 +15,19 @@ bot_url = f"https://api.telegram.org/bot{bot_token}"
 print(f"{bot_url = !r}")
 
 
-class Settings:
-    admin_token = admin_token
-    bot_token = bot_token
-    bot_url = bot_url
-    webhook_path = webhook_path
-    webhook_secret = webhook_secret
+class Settings(BaseSettings):
+    admin_token: str = Field(..., env="ADMIN_TOKEN")
+    bot_token: str = Field(..., env="TG_BOT_TOKEN")
+    webhook_secret: str = Field(..., env="WEBHOOK_SECRET")
+
+
+    @property
+    def bot_url(self):
+        return f"https://api.telegram.org/bot{self.bot_token}"
+    @property
+    def webhook_path(self):
+        return f"/tg/wh{self.webhook_secret}"
 
 
 settings = Settings()
+

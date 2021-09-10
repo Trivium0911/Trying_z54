@@ -59,29 +59,38 @@ async def _(
     client: httpx.AsyncClient = tg.Telegram,
     update: tg.Update = Body(...),
 ):
-    user = str(update.message.chat.id)
-    data = update.message.text
+    async def _(
+            client: httpx.AsyncClient = tg.Telegram,
+            update: tg.Update = Body(...),
+    ):
+        async def respond(msg: str):
+            await tg.sendMessage(
+                client,
+                tg.SendMessageRequest(
+                    chat_id=update.message.chat.id,
+                    reply_to_message_id=update.message.message_id,
+                    text=msg,
+                ),
+            )
 
-    if data == "stop":
-        number = await db.add_number(user, 0)
-    elif data.isdigit():
-        number = await db.add_number(user, int(data))
-    else:
-        number = None
+        user = str(update.message.chat.id)
+        data = update.message.text
+        try:
+            input_number = int(data)
+            if input_number > 100:
+                future = respond(f"слишком большое число: {input_number} > 100")
+            else:
+                number = await db.add_number(user, input_number)
+                future = respond(f"добавили {data}, имеем {number}")
+        except ValueError:
+            if data == "stop":
+                number = await db.add_number(user, 0)
+                future = respond(f"твоё текущее число: {number}")
+            else:
+                future = respond(f"непонятная команда: {data}")
 
-    if number is None:
-        message = f"непонятно: {data!r}"
-    else:
-        message = f"твоё текущее число: {number}"
+        await future
 
-    await tg.sendMessage(
-        client,
-        tg.SendMessageRequest(
-            chat_id=update.message.chat.id,
-            reply_to_message_id=update.message.message_id,
-            text=message,
-        ),
-    )
 
 
 @app.get("/")
